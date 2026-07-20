@@ -1,0 +1,8 @@
+node_modules
+.next
+.cache
+tools
+out
+dist
+.env.local
+*.log
