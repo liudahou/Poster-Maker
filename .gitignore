@@ -5,4 +5,5 @@ tools
 out
 dist
 .env.local
+.env
 *.log
