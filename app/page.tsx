@@ -187,8 +187,17 @@ export default function Home() {
     });
 
     if (!backgroundResponse.ok) {
-      const problem = await backgroundResponse.json().catch(() => null);
-      throw new Error(problem?.error ?? "背景生成失败，请稍后重试。");
+      const rawProblem = await backgroundResponse.text().catch(() => "");
+      let problem: { error?: string } | null = null;
+
+      try {
+        problem = rawProblem ? (JSON.parse(rawProblem) as { error?: string }) : null;
+      } catch {
+        problem = null;
+      }
+
+      const detail = problem?.error ?? rawProblem.slice(0, 500);
+      throw new Error(detail ? `背景生成失败 (${backgroundResponse.status})：${detail}` : `背景生成失败 (${backgroundResponse.status})。`);
     }
 
     const background = (await backgroundResponse.json()) as {
