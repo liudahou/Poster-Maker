@@ -57,6 +57,16 @@ export function getBackgroundJob(id: string) {
   return getStore().get(id) ?? null;
 }
 
+export function getBackgroundDataUrl(id: string) {
+  const job = getBackgroundJob(id);
+
+  if (job?.status !== "succeeded" || !job.result?.backgroundDataUrl) {
+    return null;
+  }
+
+  return job.result.backgroundDataUrl;
+}
+
 async function runBackgroundJob(id: string) {
   const job = getStore().get(id);
   if (!job) {

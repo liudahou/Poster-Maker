@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getBackgroundDataUrl } from "@/lib/ai/backgroundJobs";
 import { sanitizePosterLayout } from "@/lib/poster/layout";
 import { renderPosterPptx, type PosterPptxInput } from "@/lib/poster/pptxPoster";
 
@@ -13,6 +14,7 @@ const textFields = [
   "speakerIntro",
   "content",
   "organizer",
+  "backgroundId",
   "backgroundDataUrl"
 ] as const;
 
@@ -31,8 +33,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "请填写所有必填字段。" }, { status: 400 });
     }
 
-    if (!values.backgroundDataUrl.startsWith("data:image/")) {
-      return NextResponse.json({ error: "背景图片数据无效。" }, { status: 400 });
+    const backgroundDataUrl = resolveBackgroundDataUrl(values.backgroundId, values.backgroundDataUrl);
+    if (!backgroundDataUrl) {
+      return NextResponse.json({ error: "背景图片缓存已失效，请重新生成背景后再导出。" }, { status: 400 });
     }
 
     const avatar = formData.get("avatar");
@@ -49,6 +52,7 @@ export async function POST(request: NextRequest) {
 
     const input: PosterPptxInput = {
       ...values,
+      backgroundDataUrl,
       avatar: {
         buffer: Buffer.from(await avatar.arrayBuffer()),
         mimeType: avatar.type
@@ -98,4 +102,19 @@ function isUploadedImage(value: FormDataEntryValue | null): value is File {
     typeof value.type === "string" &&
     value.type.startsWith("image/")
   );
+}
+
+function resolveBackgroundDataUrl(backgroundId: string, fallbackDataUrl: string) {
+  if (backgroundId.trim()) {
+    const cached = getBackgroundDataUrl(backgroundId.trim());
+    if (cached) {
+      return cached;
+    }
+  }
+
+  if (fallbackDataUrl.startsWith("data:image/")) {
+    return fallbackDataUrl;
+  }
+
+  return "";
 }

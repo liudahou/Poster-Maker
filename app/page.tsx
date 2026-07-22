@@ -26,6 +26,7 @@ type DragState = {
 
 type BackgroundHistoryItem = {
   id: string;
+  backgroundId: string;
   dataUrl: string;
   mode: "generate" | "edit";
   requirement: string;
@@ -74,7 +75,9 @@ export default function Home() {
   const [avatarPreview, setAvatarPreview] = useState<string>("");
   const [logoPreviews, setLogoPreviews] = useState<string[]>([]);
   const [backgroundPreview, setBackgroundPreview] = useState<string>("");
+  const [backgroundId, setBackgroundId] = useState<string>("");
   const [backgroundHistory, setBackgroundHistory] = useState<BackgroundHistoryItem[]>([]);
+  const backgroundIdRef = useRef("");
   const [layout, setLayout] = useState<PosterLayout>(() => cloneLayout(defaultPosterLayout));
   const [selectedId, setSelectedId] = useState<string>("topic");
   const [status, setStatus] = useState<string>("");
@@ -204,7 +207,7 @@ export default function Home() {
       jobId: string;
     };
     const background = await waitForBackgroundJob(job.jobId, mode);
-    addBackgroundToHistory(background.backgroundDataUrl, mode);
+    addBackgroundToHistory(background.backgroundDataUrl, mode, job.jobId);
     return background.backgroundDataUrl;
   }
 
@@ -259,9 +262,10 @@ export default function Home() {
     throw new Error("背景生成仍在进行中，但等待时间过长。请稍后重试或降低图片尺寸。");
   }
 
-  function addBackgroundToHistory(dataUrl: string, mode: "generate" | "edit") {
+  function addBackgroundToHistory(dataUrl: string, mode: "generate" | "edit", cachedBackgroundId = "") {
     const item: BackgroundHistoryItem = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      backgroundId: cachedBackgroundId,
       dataUrl,
       mode,
       requirement: fields.backgroundRequirement.trim(),
@@ -269,11 +273,15 @@ export default function Home() {
     };
 
     setBackgroundPreview(dataUrl);
+    backgroundIdRef.current = cachedBackgroundId;
+    setBackgroundId(cachedBackgroundId);
     setBackgroundHistory((current) => [item, ...current.filter((entry) => entry.dataUrl !== dataUrl)].slice(0, 12));
   }
 
   function selectBackgroundFromHistory(item: BackgroundHistoryItem) {
     setBackgroundPreview(item.dataUrl);
+    backgroundIdRef.current = item.backgroundId;
+    setBackgroundId(item.backgroundId);
     setStatus(`已切换到 ${item.createdAt} 的背景图。`);
   }
 
@@ -285,7 +293,7 @@ export default function Home() {
     setStatus("正在按当前画布合成讲座海报...");
     const renderForm = new FormData();
     Object.entries(fields).forEach(([key, value]) => renderForm.append(key, value));
-    renderForm.append("backgroundDataUrl", backgroundDataUrl);
+    appendBackgroundReference(renderForm, backgroundDataUrl);
     renderForm.append("layout", JSON.stringify(layout));
     renderForm.append("avatar", avatar);
     logos.forEach((logo) => renderForm.append("logos", logo));
@@ -303,6 +311,17 @@ export default function Home() {
     return renderResponse.blob();
   }
 
+  function appendBackgroundReference(formData: FormData, backgroundDataUrl: string) {
+    const cachedBackgroundId = backgroundIdRef.current || backgroundId;
+
+    if (cachedBackgroundId) {
+      formData.append("backgroundId", cachedBackgroundId);
+      return;
+    }
+
+    formData.append("backgroundDataUrl", backgroundDataUrl);
+  }
+
   async function exportPptx() {
     const validationError = validateInputs();
     if (validationError) {
@@ -318,7 +337,7 @@ export default function Home() {
       setStatus("正在导出可编辑 PPTX...");
       const renderForm = new FormData();
       Object.entries(fields).forEach(([key, value]) => renderForm.append(key, value));
-      renderForm.append("backgroundDataUrl", background);
+      appendBackgroundReference(renderForm, background);
       renderForm.append("layout", JSON.stringify(layout));
       renderForm.append("avatar", avatar as File);
       logos.forEach((logo) => renderForm.append("logos", logo));
