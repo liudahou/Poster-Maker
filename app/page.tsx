@@ -173,9 +173,9 @@ export default function Home() {
 
   async function requestBackground(mode: "generate" | "edit" = "generate") {
     const isEdit = mode === "edit";
-    setStatus(isEdit ? "正在基于当前背景和背景要求进行微调..." : "正在根据主题和背景要求生成无文字科技风背景...");
+    setStatus(isEdit ? "正在提交背景微调任务..." : "正在提交 AI 背景生成任务...");
 
-    const backgroundResponse = await fetch("/api/background", {
+    const createResponse = await fetch("/api/background/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -186,8 +186,8 @@ export default function Home() {
       })
     });
 
-    if (!backgroundResponse.ok) {
-      const rawProblem = await backgroundResponse.text().catch(() => "");
+    if (!createResponse.ok) {
+      const rawProblem = await createResponse.text().catch(() => "");
       let problem: { error?: string } | null = null;
 
       try {
@@ -197,14 +197,66 @@ export default function Home() {
       }
 
       const detail = problem?.error ?? rawProblem.slice(0, 500);
-      throw new Error(detail ? `背景生成失败 (${backgroundResponse.status})：${detail}` : `背景生成失败 (${backgroundResponse.status})。`);
+      throw new Error(detail ? `背景任务创建失败 (${createResponse.status})：${detail}` : `背景任务创建失败 (${createResponse.status})。`);
     }
 
-    const background = (await backgroundResponse.json()) as {
-      backgroundDataUrl: string;
+    const job = (await createResponse.json()) as {
+      jobId: string;
     };
+    const background = await waitForBackgroundJob(job.jobId, mode);
     addBackgroundToHistory(background.backgroundDataUrl, mode);
     return background.backgroundDataUrl;
+  }
+
+  async function waitForBackgroundJob(jobId: string, mode: "generate" | "edit") {
+    const startedAt = Date.now();
+    const maxAttempts = 160;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (attempt > 0) {
+        await sleep(3000);
+      }
+
+      const elapsed = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+      setStatus(
+        mode === "edit"
+          ? `AI 正在微调当前背景，已等待 ${elapsed} 秒...`
+          : `AI 正在后台生成背景，已等待 ${elapsed} 秒...`
+      );
+
+      const response = await fetch(`/api/background/jobs/${encodeURIComponent(jobId)}`, {
+        cache: "no-store"
+      });
+      const raw = await response.text().catch(() => "");
+      let payload:
+        | {
+            status?: "queued" | "running" | "succeeded" | "failed";
+            result?: { backgroundDataUrl: string };
+            error?: string;
+          }
+        | null = null;
+
+      try {
+        payload = raw ? JSON.parse(raw) : null;
+      } catch {
+        payload = null;
+      }
+
+      if (!response.ok) {
+        const detail = payload?.error ?? raw.slice(0, 500);
+        throw new Error(detail ? `背景任务查询失败 (${response.status})：${detail}` : `背景任务查询失败 (${response.status})。`);
+      }
+
+      if (payload?.status === "succeeded" && payload.result?.backgroundDataUrl) {
+        return payload.result;
+      }
+
+      if (payload?.status === "failed") {
+        throw new Error(payload.error ?? "背景生成失败，请重试。");
+      }
+    }
+
+    throw new Error("背景生成仍在进行中，但等待时间过长。请稍后重试或降低图片尺寸。");
   }
 
   function addBackgroundToHistory(dataUrl: string, mode: "generate" | "edit") {
@@ -789,4 +841,8 @@ function downloadBlob(blob: Blob, fileName: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
