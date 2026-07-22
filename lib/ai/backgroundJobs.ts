@@ -5,6 +5,7 @@ type BackgroundJobInput = {
   content?: string;
   backgroundRequirement?: string;
   baseBackgroundDataUrl?: string;
+  provider?: string;
 };
 
 type BackgroundJobStatus = "queued" | "running" | "succeeded" | "failed";

@@ -7,6 +7,7 @@ import { defaultPosterLayout, type PosterLayout, type PosterLayoutElement, type 
 type PosterFields = {
   topic: string;
   topicEn: string;
+  backgroundProvider: string;
   backgroundRequirement: string;
   time: string;
   location: string;
@@ -36,6 +37,7 @@ type BackgroundHistoryItem = {
 const initialFields: PosterFields = {
   topic: "当机器学会策略思考",
   topicEn: "When Machines Learn Strategic Thinking",
+  backgroundProvider: "dashscope",
   backgroundRequirement: "",
   time: "5月9日 18:30（本周六）",
   location: "东南大学九龙湖校区 J1-211",
@@ -160,6 +162,11 @@ export default function Home() {
       return;
     }
 
+    if (fields.backgroundProvider !== "openai") {
+      setError("当前百炼 Qwen Image 只支持重新生成背景；如需微调当前背景，请先把背景模型切换为 GPT Image。");
+      return;
+    }
+
     setIsWorking(true);
     setError("");
 
@@ -185,7 +192,8 @@ export default function Home() {
         topic: fields.topic,
         content: fields.content,
         backgroundRequirement: fields.backgroundRequirement,
-        baseBackgroundDataUrl: isEdit ? backgroundPreview : undefined
+        baseBackgroundDataUrl: isEdit ? backgroundPreview : undefined,
+        provider: fields.backgroundProvider
       })
     });
 
@@ -441,6 +449,14 @@ export default function Home() {
             placeholder="例如:深蓝色、科技风,在画面中间偏下(约65%高度)处生成一个发光地球表面的弧形分割线，有青蓝色光晕，画面衔接自然"
             onChange={(value) => updateField("backgroundRequirement", value)}
           />
+
+          <label className="field">
+            <span>背景模型</span>
+            <select value={fields.backgroundProvider} onChange={(event) => updateField("backgroundProvider", event.target.value)}>
+              <option value="dashscope">阿里云百炼 Qwen Image 2.0（推荐更快）</option>
+              <option value="openai">GPT Image（质量稳定）</option>
+            </select>
+          </label>
 
           {error ? <p className="error">{error}</p> : null}
           {status ? <p className="status">{status}</p> : null}

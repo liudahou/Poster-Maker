@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
       content?: string;
       backgroundRequirement?: string;
       baseBackgroundDataUrl?: string;
+      provider?: string;
     };
     const topic = body.topic?.trim();
 
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest) {
       topic,
       content: body.content?.trim() ?? "",
       backgroundRequirement: body.backgroundRequirement?.trim() ?? "",
-      baseBackgroundDataUrl: body.baseBackgroundDataUrl
+      baseBackgroundDataUrl: body.baseBackgroundDataUrl,
+      provider: body.provider?.trim() ?? ""
     });
 
     return NextResponse.json(

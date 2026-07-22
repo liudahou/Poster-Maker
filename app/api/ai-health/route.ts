@@ -3,46 +3,62 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const provider = getEnv("AI_IMAGE_PROVIDER", "openai");
-  const apiBase = getEnv("AI_IMAGE_API_BASE", "https://api.openai.com/v1");
-  const model = getEnv("AI_IMAGE_MODEL", "gpt-image-2");
-  const size = getEnv("AI_IMAGE_SIZE", "512x768");
-  const quality = getEnv("AI_IMAGE_QUALITY", "low");
-  const outputFormat = getEnv("AI_IMAGE_OUTPUT_FORMAT", "png");
-  const apiKey = getEnv("AI_IMAGE_API_KEY", "");
-  const apiKeyConfigured = Boolean(apiKey);
+  const defaultProvider = getEnv("AI_IMAGE_PROVIDER", "dashscope");
+  const openai = {
+    apiBase: getFirstEnv(["OPENAI_IMAGE_API_BASE", "AI_IMAGE_API_BASE"], "https://api.openai.com/v1"),
+    model: getFirstEnv(["OPENAI_IMAGE_MODEL", "AI_IMAGE_MODEL"], "gpt-image-2"),
+    size: getFirstEnv(["OPENAI_IMAGE_SIZE", "AI_IMAGE_SIZE"], "512x768"),
+    quality: getFirstEnv(["OPENAI_IMAGE_QUALITY", "AI_IMAGE_QUALITY"], "low"),
+    outputFormat: getFirstEnv(["OPENAI_IMAGE_OUTPUT_FORMAT", "AI_IMAGE_OUTPUT_FORMAT"], "png"),
+    apiKeyConfigured: Boolean(getFirstEnv(["OPENAI_IMAGE_API_KEY", "OPENAI_API_KEY", "AI_IMAGE_API_KEY"], ""))
+  };
+  const dashscope = {
+    apiBase: getEnv("DASHSCOPE_API_BASE", "https://dashscope.aliyuncs.com/api/v1"),
+    model: getEnv("DASHSCOPE_IMAGE_MODEL", "qwen-image-2.0"),
+    size: getEnv("DASHSCOPE_IMAGE_SIZE", "512*768"),
+    apiKeyConfigured: Boolean(getFirstEnv(["DASHSCOPE_API_KEY", "DASHSCOPE_IMAGE_API_KEY"], ""))
+  };
 
   const result: Record<string, unknown> = {
     ok: true,
-    provider,
-    apiBase,
-    model,
-    size,
-    quality,
-    outputFormat,
-    sizeConfigured: Boolean(process.env.AI_IMAGE_SIZE),
-    qualityConfigured: Boolean(process.env.AI_IMAGE_QUALITY),
-    apiKeyConfigured,
+    defaultProvider,
+    providers: {
+      openai,
+      dashscope
+    },
     node: process.version
   };
 
-  if (provider.toLowerCase() !== "openai") {
-    result.note = "AI_IMAGE_PROVIDER is not openai, so background generation will use the mock fallback.";
-    return NextResponse.json(result);
+  const checks = await Promise.allSettled([
+    checkOpenAI(openai.apiBase, getFirstEnv(["OPENAI_IMAGE_API_KEY", "OPENAI_API_KEY", "AI_IMAGE_API_KEY"], "")),
+    checkDashScope(dashscope.apiBase, getFirstEnv(["DASHSCOPE_API_KEY", "DASHSCOPE_IMAGE_API_KEY"], ""))
+  ]);
+
+  result.connectivity = {
+    openai: checks[0].status === "fulfilled" ? checks[0].value : { ok: false, error: checks[0].reason?.message ?? "Unknown error" },
+    dashscope: checks[1].status === "fulfilled" ? checks[1].value : { ok: false, error: checks[1].reason?.message ?? "Unknown error" }
+  };
+
+  return NextResponse.json(result);
+}
+
+async function checkOpenAI(apiBase: string, apiKey: string) {
+  if (!apiKey) {
+    return { ok: false, error: "OPENAI_IMAGE_API_KEY is missing." };
   }
 
-  if (!apiKeyConfigured) {
-    return NextResponse.json(
-      {
-        ...result,
-        ok: false,
-        error: "AI_IMAGE_API_KEY is missing."
-      },
-      { status: 500 }
-    );
+  return checkEndpoint(`${apiBase.replace(/\/+$/, "")}/models`, apiKey);
+}
+
+async function checkDashScope(apiBase: string, apiKey: string) {
+  if (!apiKey) {
+    return { ok: false, error: "DASHSCOPE_API_KEY is missing." };
   }
 
-  const endpoint = `${apiBase.replace(/\/+$/, "")}/models`;
+  return checkEndpoint(`${apiBase.replace(/\/+$/, "")}/models`, apiKey);
+}
+
+async function checkEndpoint(endpoint: string, apiKey: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
 
@@ -55,27 +71,18 @@ export async function GET() {
     });
     const body = await response.text();
 
-    return NextResponse.json({
-      ...result,
-      connectivity: {
-        endpoint,
-        status: response.status,
-        ok: response.ok,
-        bodyPreview: body.slice(0, 500)
-      }
-    });
+    return {
+      endpoint,
+      status: response.status,
+      ok: response.ok,
+      bodyPreview: body.slice(0, 500)
+    };
   } catch (error) {
-    return NextResponse.json(
-      {
-        ...result,
-        ok: false,
-        connectivity: {
-          endpoint,
-          error: error instanceof Error ? error.message : "Unknown fetch error"
-        }
-      },
-      { status: 500 }
-    );
+    return {
+      endpoint,
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown fetch error"
+    };
   } finally {
     clearTimeout(timeout);
   }
@@ -84,4 +91,15 @@ export async function GET() {
 function getEnv(name: string, fallback: string) {
   const value = process.env[name]?.trim();
   return value || fallback;
+}
+
+function getFirstEnv(names: string[], fallback: string) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  return fallback;
 }

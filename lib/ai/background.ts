@@ -6,6 +6,7 @@ type GenerateBackgroundInput = {
   content?: string;
   backgroundRequirement?: string;
   baseBackgroundDataUrl?: string;
+  provider?: string;
 };
 
 type GenerateBackgroundResult = {
@@ -15,7 +16,7 @@ type GenerateBackgroundResult = {
 };
 
 export async function generateBackground(input: GenerateBackgroundInput): Promise<GenerateBackgroundResult> {
-  const provider = getEnv("AI_IMAGE_PROVIDER", "openai").toLowerCase();
+  const provider = (input.provider?.trim() || getEnv("AI_IMAGE_PROVIDER", "openai")).toLowerCase();
   const prompt = buildBackgroundPrompt(input);
 
   if (provider === "openai") {
@@ -38,7 +39,19 @@ export async function generateBackground(input: GenerateBackgroundInput): Promis
     };
   }
 
-  throw new Error(`Unsupported AI_IMAGE_PROVIDER "${provider}". Use "openai" or "mock".`);
+  if (provider === "dashscope") {
+    if (input.baseBackgroundDataUrl) {
+      throw new Error("阿里云百炼 Qwen Image 当前只支持重新生成背景；如需基于当前背景微调，请选择 GPT Image。");
+    }
+
+    return {
+      backgroundDataUrl: await generateWithDashScope(prompt),
+      provider,
+      prompt
+    };
+  }
+
+  throw new Error(`Unsupported AI_IMAGE_PROVIDER "${provider}". Use "openai", "dashscope", or "mock".`);
 }
 
 export function buildBackgroundPrompt(input: GenerateBackgroundInput) {
@@ -70,12 +83,12 @@ export function buildBackgroundPrompt(input: GenerateBackgroundInput) {
 async function generateWithOpenAI(prompt: string) {
   await enableProxyFromEnvIfNeeded();
 
-  const apiKey = getEnv("AI_IMAGE_API_KEY", "");
-  const model = getEnv("AI_IMAGE_MODEL", "gpt-image-2");
-  const size = getEnv("AI_IMAGE_SIZE", "512x768");
-  const quality = getEnv("AI_IMAGE_QUALITY", "low");
-  const outputFormat = getEnv("AI_IMAGE_OUTPUT_FORMAT", "png");
-  const apiBase = getEnv("AI_IMAGE_API_BASE", "https://api.openai.com/v1");
+  const apiKey = getFirstEnv(["OPENAI_IMAGE_API_KEY", "OPENAI_API_KEY", "AI_IMAGE_API_KEY"], "");
+  const model = getFirstEnv(["OPENAI_IMAGE_MODEL", "AI_IMAGE_MODEL"], "gpt-image-2");
+  const size = getFirstEnv(["OPENAI_IMAGE_SIZE", "AI_IMAGE_SIZE"], "512x768");
+  const quality = getFirstEnv(["OPENAI_IMAGE_QUALITY", "AI_IMAGE_QUALITY"], "low");
+  const outputFormat = getFirstEnv(["OPENAI_IMAGE_OUTPUT_FORMAT", "AI_IMAGE_OUTPUT_FORMAT"], "png");
+  const apiBase = getFirstEnv(["OPENAI_IMAGE_API_BASE", "AI_IMAGE_API_BASE"], "https://api.openai.com/v1");
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/generations`;
 
   if (!apiKey) {
@@ -140,12 +153,12 @@ async function generateWithOpenAI(prompt: string) {
 async function editWithOpenAI(prompt: string, baseBackgroundDataUrl: string) {
   await enableProxyFromEnvIfNeeded();
 
-  const apiKey = getEnv("AI_IMAGE_API_KEY", "");
-  const model = getEnv("AI_IMAGE_MODEL", "gpt-image-2");
-  const size = getEnv("AI_IMAGE_SIZE", "512x768");
-  const quality = getEnv("AI_IMAGE_QUALITY", "low");
-  const outputFormat = getEnv("AI_IMAGE_OUTPUT_FORMAT", "png");
-  const apiBase = getEnv("AI_IMAGE_API_BASE", "https://api.openai.com/v1");
+  const apiKey = getFirstEnv(["OPENAI_IMAGE_API_KEY", "OPENAI_API_KEY", "AI_IMAGE_API_KEY"], "");
+  const model = getFirstEnv(["OPENAI_IMAGE_MODEL", "AI_IMAGE_MODEL"], "gpt-image-2");
+  const size = getFirstEnv(["OPENAI_IMAGE_SIZE", "AI_IMAGE_SIZE"], "512x768");
+  const quality = getFirstEnv(["OPENAI_IMAGE_QUALITY", "AI_IMAGE_QUALITY"], "low");
+  const outputFormat = getFirstEnv(["OPENAI_IMAGE_OUTPUT_FORMAT", "AI_IMAGE_OUTPUT_FORMAT"], "png");
+  const apiBase = getFirstEnv(["OPENAI_IMAGE_API_BASE", "AI_IMAGE_API_BASE"], "https://api.openai.com/v1");
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/edits`;
 
   if (!apiKey) {
@@ -194,6 +207,190 @@ async function editWithOpenAI(prompt: string, baseBackgroundDataUrl: string) {
   }
 
   return readImageFromResponse(await response.json());
+}
+
+async function generateWithDashScope(prompt: string) {
+  const apiKey = getFirstEnv(["DASHSCOPE_API_KEY", "DASHSCOPE_IMAGE_API_KEY"], "");
+  const model = getEnv("DASHSCOPE_IMAGE_MODEL", "qwen-image-2.0");
+  const size = normalizeDashScopeSize(getEnv("DASHSCOPE_IMAGE_SIZE", "512*768"));
+  const apiBase = getEnv("DASHSCOPE_API_BASE", "https://dashscope.aliyuncs.com/api/v1");
+  const endpoint = `${apiBase.replace(/\/+$/, "")}/services/aigc/multimodal-generation/generation`;
+
+  if (!apiKey) {
+    throw new Error("DASHSCOPE_API_KEY is required for 阿里云百炼 Qwen Image.");
+  }
+
+  const body = {
+    model,
+    input: {
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              text: prompt
+            }
+          ]
+        }
+      ]
+    },
+    parameters: {
+      size,
+      n: 1,
+      watermark: false,
+      negative_prompt: "text, letters, words, numbers, logo, watermark, signature, emblem, QR code"
+    }
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-DashScope-Async": "enable"
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (error) {
+    throw new Error(describeFetchFailure(error, endpoint));
+  }
+
+  const payload = await readJsonResponse(response, "DashScope background generation");
+  const directImage = await readImageFromDashScopePayload(payload);
+  if (directImage) {
+    return directImage;
+  }
+
+  const taskId = getDashScopeTaskId(payload);
+  if (!taskId) {
+    throw new Error(`DashScope did not return an image or task id: ${JSON.stringify(payload).slice(0, 500)}`);
+  }
+
+  return pollDashScopeTask(apiBase, apiKey, taskId);
+}
+
+async function pollDashScopeTask(apiBase: string, apiKey: string, taskId: string) {
+  const endpoint = `${apiBase.replace(/\/+$/, "")}/tasks/${encodeURIComponent(taskId)}`;
+  const maxAttempts = 120;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(2500);
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`
+        }
+      });
+    } catch (error) {
+      throw new Error(describeFetchFailure(error, endpoint));
+    }
+
+    const payload = await readJsonResponse(response, "DashScope task polling");
+    const image = await readImageFromDashScopePayload(payload);
+    if (image) {
+      return image;
+    }
+
+    const status = getDashScopeTaskStatus(payload);
+    if (["FAILED", "UNKNOWN", "CANCELED", "REJECTED"].includes(status)) {
+      throw new Error(`DashScope image task failed: ${JSON.stringify(payload).slice(0, 500)}`);
+    }
+  }
+
+  throw new Error("DashScope image task timed out.");
+}
+
+async function readJsonResponse(response: Response, label: string) {
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`${label} failed (${response.status} ${response.statusText}): ${text.slice(0, 500)}`);
+  }
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error(`${label} returned non-JSON response: ${text.slice(0, 500)}`);
+  }
+}
+
+async function readImageFromDashScopePayload(payload: unknown) {
+  for (const value of collectStrings(payload)) {
+    if (value.startsWith("data:image/")) {
+      return value;
+    }
+
+    if (isLikelyBase64Image(value)) {
+      return `data:image/png;base64,${value}`;
+    }
+
+    if (/^https?:\/\//i.test(value) && /\.(png|jpe?g|webp)(\?|$)/i.test(value)) {
+      const imageResponse = await fetch(value);
+      if (!imageResponse.ok) {
+        throw new Error("Failed to download the DashScope generated image.");
+      }
+      const buffer = Buffer.from(await imageResponse.arrayBuffer());
+      return `data:image/png;base64,${buffer.toString("base64")}`;
+    }
+  }
+
+  return "";
+}
+
+function getDashScopeTaskId(payload: unknown) {
+  const output = getObjectProperty(payload, "output");
+  return getStringProperty(output, "task_id") || getStringProperty(payload, "task_id");
+}
+
+function getDashScopeTaskStatus(payload: unknown) {
+  const output = getObjectProperty(payload, "output");
+  return (getStringProperty(output, "task_status") || getStringProperty(payload, "task_status")).toUpperCase();
+}
+
+function getObjectProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || !(key in value)) {
+    return null;
+  }
+  const property = (value as Record<string, unknown>)[key];
+  return property && typeof property === "object" ? property : null;
+}
+
+function getStringProperty(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || !(key in value)) {
+    return "";
+  }
+  const property = (value as Record<string, unknown>)[key];
+  return typeof property === "string" ? property : "";
+}
+
+function collectStrings(value: unknown): string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(collectStrings);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(collectStrings);
+  }
+
+  return [];
+}
+
+function isLikelyBase64Image(value: string) {
+  return value.length > 1000 && /^[A-Za-z0-9+/=\r\n]+$/.test(value);
+}
+
+function normalizeDashScopeSize(value: string) {
+  return value.replace(/x/i, "*");
 }
 
 async function normalizeDataUrlImage(dataUrl: string) {
@@ -263,6 +460,21 @@ function hasProxyEnv() {
 function getEnv(name: string, fallback: string) {
   const value = process.env[name]?.trim();
   return value || fallback;
+}
+
+function getFirstEnv(names: string[], fallback: string) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function describeFetchFailure(error: unknown, endpoint: string) {
