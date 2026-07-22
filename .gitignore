@@ -6,4 +6,5 @@ out
 dist
 .env.local
 .env
+.env.production
 *.log
