@@ -79,7 +79,7 @@ async function generateWithOpenAI(prompt: string) {
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/generations`;
 
   if (!apiKey) {
-    throw new Error("AI_IMAGE_PROVIDER=openai requires AI_IMAGE_API_KEY in .env.local.");
+    throw new Error("AI_IMAGE_PROVIDER=openai requires AI_IMAGE_API_KEY. Please check Meoo Secrets or environment variables.");
   }
 
   const body: Record<string, unknown> = {
@@ -149,7 +149,7 @@ async function editWithOpenAI(prompt: string, baseBackgroundDataUrl: string) {
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/edits`;
 
   if (!apiKey) {
-    throw new Error("AI_IMAGE_PROVIDER=openai requires AI_IMAGE_API_KEY in .env.local.");
+    throw new Error("AI_IMAGE_PROVIDER=openai requires AI_IMAGE_API_KEY. Please check Meoo Secrets or environment variables.");
   }
 
   const baseImage = await normalizeDataUrlImage(baseBackgroundDataUrl);
