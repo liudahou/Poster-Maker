@@ -15,7 +15,7 @@ type GenerateBackgroundResult = {
 };
 
 export async function generateBackground(input: GenerateBackgroundInput): Promise<GenerateBackgroundResult> {
-  const provider = (process.env.AI_IMAGE_PROVIDER ?? "mock").toLowerCase();
+  const provider = getEnv("AI_IMAGE_PROVIDER", "openai").toLowerCase();
   const prompt = buildBackgroundPrompt(input);
 
   if (provider === "openai") {
@@ -30,11 +30,15 @@ export async function generateBackground(input: GenerateBackgroundInput): Promis
     };
   }
 
-  return {
-    backgroundDataUrl: makeMockBackgroundDataUrl(),
-    provider: "mock",
-    prompt
-  };
+  if (provider === "mock") {
+    return {
+      backgroundDataUrl: makeMockBackgroundDataUrl(),
+      provider: "mock",
+      prompt
+    };
+  }
+
+  throw new Error(`Unsupported AI_IMAGE_PROVIDER "${provider}". Use "openai" or "mock".`);
 }
 
 export function buildBackgroundPrompt(input: GenerateBackgroundInput) {
@@ -66,12 +70,12 @@ export function buildBackgroundPrompt(input: GenerateBackgroundInput) {
 async function generateWithOpenAI(prompt: string) {
   await enableProxyFromEnvIfNeeded();
 
-  const apiKey = process.env.AI_IMAGE_API_KEY;
-  const model = process.env.AI_IMAGE_MODEL ?? "gpt-image-2";
-  const size = process.env.AI_IMAGE_SIZE ?? "512x768";
-  const quality = process.env.AI_IMAGE_QUALITY ?? "low";
-  const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT ?? "png";
-  const apiBase = process.env.AI_IMAGE_API_BASE ?? "https://api.openai.com/v1";
+  const apiKey = getEnv("AI_IMAGE_API_KEY", "");
+  const model = getEnv("AI_IMAGE_MODEL", "gpt-image-2");
+  const size = getEnv("AI_IMAGE_SIZE", "512x768");
+  const quality = getEnv("AI_IMAGE_QUALITY", "low");
+  const outputFormat = getEnv("AI_IMAGE_OUTPUT_FORMAT", "png");
+  const apiBase = getEnv("AI_IMAGE_API_BASE", "https://api.openai.com/v1");
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/generations`;
 
   if (!apiKey) {
@@ -136,12 +140,12 @@ async function generateWithOpenAI(prompt: string) {
 async function editWithOpenAI(prompt: string, baseBackgroundDataUrl: string) {
   await enableProxyFromEnvIfNeeded();
 
-  const apiKey = process.env.AI_IMAGE_API_KEY;
-  const model = process.env.AI_IMAGE_MODEL ?? "gpt-image-2";
-  const size = process.env.AI_IMAGE_SIZE ?? "512x768";
-  const quality = process.env.AI_IMAGE_QUALITY ?? "low";
-  const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT ?? "png";
-  const apiBase = process.env.AI_IMAGE_API_BASE ?? "https://api.openai.com/v1";
+  const apiKey = getEnv("AI_IMAGE_API_KEY", "");
+  const model = getEnv("AI_IMAGE_MODEL", "gpt-image-2");
+  const size = getEnv("AI_IMAGE_SIZE", "512x768");
+  const quality = getEnv("AI_IMAGE_QUALITY", "low");
+  const outputFormat = getEnv("AI_IMAGE_OUTPUT_FORMAT", "png");
+  const apiBase = getEnv("AI_IMAGE_API_BASE", "https://api.openai.com/v1");
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/edits`;
 
   if (!apiKey) {
@@ -254,6 +258,11 @@ function hasProxyEnv() {
     process.env.HTTP_PROXY ||
     process.env.http_proxy
   );
+}
+
+function getEnv(name: string, fallback: string) {
+  const value = process.env[name]?.trim();
+  return value || fallback;
 }
 
 function describeFetchFailure(error: unknown, endpoint: string) {

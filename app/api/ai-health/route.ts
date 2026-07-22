@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const provider = process.env.AI_IMAGE_PROVIDER ?? "mock";
-  const apiBase = process.env.AI_IMAGE_API_BASE ?? "https://api.openai.com/v1";
-  const model = process.env.AI_IMAGE_MODEL ?? "gpt-image-2";
-  const size = process.env.AI_IMAGE_SIZE ?? "512x768";
-  const quality = process.env.AI_IMAGE_QUALITY ?? "low";
-  const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT ?? "png";
-  const apiKeyConfigured = Boolean(process.env.AI_IMAGE_API_KEY);
+  const provider = getEnv("AI_IMAGE_PROVIDER", "openai");
+  const apiBase = getEnv("AI_IMAGE_API_BASE", "https://api.openai.com/v1");
+  const model = getEnv("AI_IMAGE_MODEL", "gpt-image-2");
+  const size = getEnv("AI_IMAGE_SIZE", "512x768");
+  const quality = getEnv("AI_IMAGE_QUALITY", "low");
+  const outputFormat = getEnv("AI_IMAGE_OUTPUT_FORMAT", "png");
+  const apiKey = getEnv("AI_IMAGE_API_KEY", "");
+  const apiKeyConfigured = Boolean(apiKey);
 
   const result: Record<string, unknown> = {
     ok: true,
@@ -48,7 +49,7 @@ export async function GET() {
   try {
     const response = await fetch(endpoint, {
       headers: {
-        Authorization: `Bearer ${process.env.AI_IMAGE_API_KEY}`
+        Authorization: `Bearer ${apiKey}`
       },
       signal: controller.signal
     });
@@ -78,4 +79,9 @@ export async function GET() {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function getEnv(name: string, fallback: string) {
+  const value = process.env[name]?.trim();
+  return value || fallback;
 }
