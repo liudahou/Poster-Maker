@@ -40,9 +40,9 @@ textarea {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(360px, 560px) minmax(320px, 1fr);
+  grid-template-columns: minmax(320px, 460px) minmax(360px, 1fr);
   gap: 28px;
-  max-width: 1420px;
+  max-width: 1560px;
   margin: 0 auto;
 }
 
@@ -520,7 +520,7 @@ textarea {
   line-height: 1.6;
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 860px) {
   .workspace {
     grid-template-columns: 1fr;
   }

@@ -6,8 +6,8 @@ export async function GET() {
   const provider = process.env.AI_IMAGE_PROVIDER ?? "mock";
   const apiBase = process.env.AI_IMAGE_API_BASE ?? "https://api.openai.com/v1";
   const model = process.env.AI_IMAGE_MODEL ?? "gpt-image-2";
-  const size = process.env.AI_IMAGE_SIZE ?? "1024x1536";
-  const quality = process.env.AI_IMAGE_QUALITY ?? "medium";
+  const size = process.env.AI_IMAGE_SIZE ?? "512x768";
+  const quality = process.env.AI_IMAGE_QUALITY ?? "low";
   const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT ?? "png";
   const apiKeyConfigured = Boolean(process.env.AI_IMAGE_API_KEY);
 
@@ -19,6 +19,8 @@ export async function GET() {
     size,
     quality,
     outputFormat,
+    sizeConfigured: Boolean(process.env.AI_IMAGE_SIZE),
+    qualityConfigured: Boolean(process.env.AI_IMAGE_QUALITY),
     apiKeyConfigured,
     node: process.version
   };

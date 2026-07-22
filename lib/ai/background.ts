@@ -68,8 +68,8 @@ async function generateWithOpenAI(prompt: string) {
 
   const apiKey = process.env.AI_IMAGE_API_KEY;
   const model = process.env.AI_IMAGE_MODEL ?? "gpt-image-2";
-  const size = process.env.AI_IMAGE_SIZE ?? "1024x1536";
-  const quality = process.env.AI_IMAGE_QUALITY ?? "medium";
+  const size = process.env.AI_IMAGE_SIZE ?? "512x768";
+  const quality = process.env.AI_IMAGE_QUALITY ?? "low";
   const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT ?? "png";
   const apiBase = process.env.AI_IMAGE_API_BASE ?? "https://api.openai.com/v1";
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/generations`;
@@ -138,8 +138,8 @@ async function editWithOpenAI(prompt: string, baseBackgroundDataUrl: string) {
 
   const apiKey = process.env.AI_IMAGE_API_KEY;
   const model = process.env.AI_IMAGE_MODEL ?? "gpt-image-2";
-  const size = process.env.AI_IMAGE_SIZE ?? "1024x1536";
-  const quality = process.env.AI_IMAGE_QUALITY ?? "medium";
+  const size = process.env.AI_IMAGE_SIZE ?? "512x768";
+  const quality = process.env.AI_IMAGE_QUALITY ?? "low";
   const outputFormat = process.env.AI_IMAGE_OUTPUT_FORMAT ?? "png";
   const apiBase = process.env.AI_IMAGE_API_BASE ?? "https://api.openai.com/v1";
   const endpoint = `${apiBase.replace(/\/+$/, "")}/images/edits`;
