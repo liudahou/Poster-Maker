@@ -87,8 +87,27 @@ export async function renderPoster(input: PosterRenderInput) {
 
 function ensureFontCache() {
   const cacheHome = process.env.XDG_CACHE_HOME ?? path.join(process.cwd(), ".cache");
+  const fontConfigDir = path.join(cacheHome, "fontconfig");
+  const fontDir = path.join(process.cwd(), "assets", "fonts");
+  const fontConfigFile = path.join(fontConfigDir, "fonts.conf");
+
   process.env.XDG_CACHE_HOME = cacheHome;
-  fs.mkdirSync(path.join(cacheHome, "fontconfig"), { recursive: true });
+  process.env.FONTCONFIG_FILE = fontConfigFile;
+  process.env.FONTCONFIG_PATH = fontConfigDir;
+
+  fs.mkdirSync(fontConfigDir, { recursive: true });
+  fs.writeFileSync(
+    fontConfigFile,
+    `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>${escapeFontConfigPath(fontDir)}</dir>
+  <cachedir>${escapeFontConfigPath(fontConfigDir)}</cachedir>
+  <config></config>
+</fontconfig>
+`,
+    "utf8"
+  );
 }
 
 function dataUrlToBuffer(dataUrl: string) {
@@ -97,6 +116,10 @@ function dataUrlToBuffer(dataUrl: string) {
     throw new Error("背景图片数据格式无效。");
   }
   return Buffer.from(match[1], "base64");
+}
+
+function escapeFontConfigPath(value: string) {
+  return value.replace(/\\/g, "/").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 async function makeImage(input: Buffer, width: number, height: number, fit: "cover" | "contain") {

@@ -2,7 +2,7 @@
 import { sanitizePosterLayout, type PosterLayout, type PosterTextKey } from "./layout";
 import { POSTER_HEIGHT, POSTER_WIDTH } from "./constants";
 
-const fontStack = "'Microsoft YaHei','Noto Sans CJK SC','PingFang SC','SimHei',Arial,sans-serif";
+const fontStack = "'Noto Sans SC','Noto Sans CJK SC','Microsoft YaHei','PingFang SC','SimHei',Arial,sans-serif";
 
 export function makeTemplateSvg(input: PosterFieldsForRender, layoutInput?: PosterLayout) {
   const layout = sanitizePosterLayout(layoutInput);
