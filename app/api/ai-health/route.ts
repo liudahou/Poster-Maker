@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const defaultProvider = getEnv("AI_IMAGE_PROVIDER", "dashscope");
+  const defaultProvider = getEnv("AI_IMAGE_PROVIDER", "openai");
   const openai = {
     apiBase: getFirstEnv(["OPENAI_IMAGE_API_BASE", "AI_IMAGE_API_BASE"], "https://api.openai.com/v1"),
     model: getFirstEnv(["OPENAI_IMAGE_MODEL", "AI_IMAGE_MODEL"], "gpt-image-2"),

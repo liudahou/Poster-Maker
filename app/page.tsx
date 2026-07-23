@@ -37,7 +37,7 @@ type BackgroundHistoryItem = {
 const initialFields: PosterFields = {
   topic: "当机器学会策略思考",
   topicEn: "When Machines Learn Strategic Thinking",
-  backgroundProvider: "dashscope",
+  backgroundProvider: "openai",
   backgroundRequirement: "",
   time: "5月9日 18:30（本周六）",
   location: "东南大学九龙湖校区 J1-211",
@@ -453,8 +453,8 @@ export default function Home() {
           <label className="field">
             <span>背景模型</span>
             <select value={fields.backgroundProvider} onChange={(event) => updateField("backgroundProvider", event.target.value)}>
-              <option value="dashscope">阿里云百炼 Qwen Image 2.0（推荐更快）</option>
               <option value="openai">GPT Image（质量稳定）</option>
+              <option value="dashscope">阿里云百炼 Qwen Image 2.0</option>
             </select>
           </label>
 
