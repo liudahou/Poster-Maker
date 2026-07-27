@@ -183,6 +183,12 @@ export default function Home() {
 
   async function requestBackground(mode: "generate" | "edit" = "generate") {
     const isEdit = mode === "edit";
+    const cachedBackgroundId = backgroundIdRef.current || backgroundId;
+
+    if (isEdit && !cachedBackgroundId) {
+      throw new Error("当前背景缓存已过期，请先重新生成一张背景，再进行微调。");
+    }
+
     setStatus(isEdit ? "正在提交背景微调任务..." : "正在提交 AI 背景生成任务...");
 
     const createResponse = await fetch("/api/background/jobs", {
@@ -192,7 +198,7 @@ export default function Home() {
         topic: fields.topic,
         content: fields.content,
         backgroundRequirement: fields.backgroundRequirement,
-        baseBackgroundDataUrl: isEdit ? backgroundPreview : undefined,
+        baseBackgroundId: isEdit ? cachedBackgroundId : undefined,
         provider: fields.backgroundProvider
       })
     });
