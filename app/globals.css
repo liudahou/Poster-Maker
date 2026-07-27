@@ -216,6 +216,17 @@ textarea {
   white-space: nowrap;
 }
 
+.toolbar-hint {
+  grid-column: 1 / -1;
+  justify-self: end;
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: right;
+}
+
 .error,
 .status {
   margin: 0;
@@ -561,5 +572,11 @@ textarea {
   .action-row,
   .toolbar-actions {
     grid-template-columns: 1fr;
+  }
+
+  .toolbar-hint {
+    justify-self: stretch;
+    max-width: none;
+    text-align: left;
   }
 }

@@ -59,6 +59,16 @@ const requiredFields: Array<keyof PosterFields> = [
   "organizer"
 ];
 
+const fieldLabels: Partial<Record<keyof PosterFields, string>> = {
+  topic: "讲座主题",
+  time: "讲座时间",
+  location: "讲座地点",
+  speakerName: "主讲人",
+  speakerIntro: "主讲人介绍",
+  content: "主讲内容",
+  organizer: "主办单位"
+};
+
 const editableTextKeys = new Set<PosterTextKey>([
   "topic",
   "topicEn",
@@ -86,9 +96,35 @@ export default function Home() {
   const [error, setError] = useState<string>("");
   const [isWorking, setIsWorking] = useState(false);
 
+  const missingRequiredFieldLabels = useMemo(() => {
+    return requiredFields
+      .filter((name) => !fields[name].trim())
+      .map((name) => fieldLabels[name] ?? name);
+  }, [fields]);
+
   const canGenerate = useMemo(() => {
-    return requiredFields.every((name) => fields[name].trim()) && avatar && logos.length > 0;
-  }, [avatar, fields, logos.length]);
+    return missingRequiredFieldLabels.length === 0 && Boolean(avatar) && logos.length > 0;
+  }, [avatar, logos.length, missingRequiredFieldLabels.length]);
+
+  const exportDisabledReason = useMemo(() => {
+    if (isWorking) {
+      return status || "正在处理当前任务，请稍候。";
+    }
+
+    if (missingRequiredFieldLabels.length > 0) {
+      return `请填写：${missingRequiredFieldLabels.join("、")}。`;
+    }
+
+    if (!avatar) {
+      return "请上传主讲人头像。";
+    }
+
+    if (logos.length === 0) {
+      return "请上传至少一个 Logo。";
+    }
+
+    return "";
+  }, [avatar, isWorking, logos.length, missingRequiredFieldLabels, status]);
 
   const selectedElement = layout.find((element) => element.id === selectedId) ?? layout[0];
 
@@ -487,12 +523,25 @@ export default function Home() {
               <button className="ghost-action" type="button" onClick={resetLayout}>
                 重置布局
               </button>
-              <button className="primary-action compact-action" disabled={!canGenerate || isWorking} type="button" onClick={exportImage}>
+              <button
+                className="primary-action compact-action"
+                disabled={!canGenerate || isWorking}
+                title={exportDisabledReason || "导出 PNG 图片"}
+                type="button"
+                onClick={exportImage}
+              >
                 导出图片
               </button>
-              <button className="primary-action compact-action" disabled={!canGenerate || isWorking} type="button" onClick={exportPptx}>
+              <button
+                className="primary-action compact-action"
+                disabled={!canGenerate || isWorking}
+                title={exportDisabledReason || "导出可编辑 PPTX"}
+                type="button"
+                onClick={exportPptx}
+              >
                 导出可编辑 PPTX
               </button>
+              {exportDisabledReason ? <p className="toolbar-hint">{exportDisabledReason}</p> : null}
             </div>
           </div>
 
